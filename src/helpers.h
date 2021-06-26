@@ -10,6 +10,7 @@ using namespace std;
 
 struct Pose
 {
+  int id;
   double x;   //m
   double y;   //m
   double s;   //m

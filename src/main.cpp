@@ -99,12 +99,13 @@ int main() {
           for(auto const& carData:sensor_fusion)
           {
             Pose p;
-            p.x = carData[0];
-            p.y = carData[1];
-            p.vx = carData[2];
-            p.vy = carData[3];
-            p.s = carData[4];
-            p.d = carData[5];
+            p.id = carData[0];
+            p.x = carData[1];
+            p.y = carData[2];
+            p.vx = carData[3];
+            p.vy = carData[4];
+            p.s = carData[5];
+            p.d = carData[6];
             cars.emplace_back(p);
           }
 

@@ -10,6 +10,7 @@ int logs=0, maxlogs=70;
 
 static const double HIGHWAY_SPEED_MPS = 22;
 static const int    TRAJ_SIZE         = 50;
+static const double acc               = mph_to_mps(0.224);
 
 enum State {
   IDLE, //vehicle is just standing and not moving
@@ -25,29 +26,67 @@ enum Lane{ LEFT, RIGHT};
 class LaneChangerFSM
 {
 public:
-  LaneChangerFSM():_state(IDLE), _curLane(1), _refvel(HIGHWAY_SPEED_MPS) {}
+  LaneChangerFSM():_state(IDLE), _curLane(1), _refvel(0) {}
   Path findNextPath(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);
 
 private:
   void setState(State s) {_state=s;}
   Lane findBestLane() { return LEFT; };
   Path findKeepLanePath(Pose const& pose, MapData const& mapData, Path const& prev);
-  bool closeToVehicleInFront(Pose const& pose, vector<Pose> const& cars);
+  int closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);
   
   State _state;
   int _curLane;
   double _refvel;//in mps
 };
 
-bool LaneChangerFSM::closeToVehicleInFront(Pose const& pose, vector<Pose> const& cars)
+int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 { 
-  // for(auto const& car:cars)
-  // {
-  //   double spd=sqrt(car.vx*car.vx + car.vy*car.vy);
-  //   double stotal = car.s + 
-  // }
+  /*
+  double prevs;
+  int prevSize=prev.xpts.size();
+  if(prevSize<2)
+    prevs=pose.s;
+  else
+  {
+    //Find frenet of the end point of prev
+    double y2=prev.ypts[prevSize-1], y1=prev.ypts[prevSize-2];
+    double x2=prev.xpts[prevSize-1], x1=prev.xpts[prevSize-2];
+    double theta = atan2(y2-y1, x2-x1);
+    auto frenets = getFrenet(prev.xpts.back(), prev.xpts.front(), theta, mapData.waypoints_x, mapData.waypoints_y);
+    prevs = frenets[0];
+  }
+
+  for(auto const& car:cars)
+  {
+    //Width of evey lane is 4. Note, our d is 4*_curLane + 2
+    //Dont worry if this vehicle is not in our lane
+    if(car.d < 4*_curLane || car.d > 5*_curLane) continue;
+
+    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
+    double carStotal = car.s + prevSize*0.02*carspd;
+
+  }*/
+
+  for(auto const& car:cars)
+  {
+    //Width of evey lane is 4. Note, our d is 4*_curLane + 2
+    //Dont worry if this vehicle is not in our lane
+    //cout<<"id:"<<car.id<< " cl:"<<_curLane<< " d:"<<car.d<< " pd:"<<pose.d<< " s:"<<car.s << " ps:"<< pose.s<<endl;
+    
+    if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;
+    
+    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
+    
+    double stoppingDistance = 30; //;+ (carspd*carspd - pose.spd*pose.spd)/2*
+    if(car.s > pose.s && car.s-pose.s < stoppingDistance)// && carspd < pose.spd)
+    {
+      cout<<"    Dis:"<<car.s-pose.s<<" spd:"<<carspd<<" ps:"<<pose.spd<<endl;      
+      return car.id;
+    }
+  }
   
-  return false; 
+  return -1; 
     
 }
 
@@ -63,20 +102,42 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
         setState(KEEP_LANE);
         break;
       case KEEP_LANE:
-        if(closeToVehicleInFront(pose, cars))
+        int leadId = closeToVehicleInFront(pose, mapData, prev, cars);
+        
+        if(leadId!=-1)
         {
+          auto const& lead=cars[leadId];
+          double leadspd=sqrt(lead.vx*lead.vx + lead.vy*lead.vy);
+          cout<<"LeadId"<<leadId<< " Leadspd:"<<leadspd<< " refvel:"<<_refvel<<endl;
+          if(leadspd<=_refvel) 
+            _refvel-=mph_to_mps(0.224);
+          //if(lead.s-pose.s<25)
+          //  _refvel+=mph_to_mps(0.224);
+
+
           Lane bestLane = findBestLane();
-          if(bestLane==LEFT) 
+          if(bestLane==-1)
           {
-            setState(PREP_LEFT_LANE_CHANGE);
-            continue;
+            //lower your speed
+          }
+          else if(bestLane==LEFT) 
+          {
+            _curLane = _curLane==0 ? _curLane : _curLane-1;
+            //setState(PREP_LEFT_LANE_CHANGE);
+            //continue;
           }
           else
           {
-            setState(PREP_RIGHT_LANE_CHANGE);
-            continue;
+            _curLane = _curLane==2 ? _curLane : _curLane++;
+            //setState(PREP_RIGHT_LANE_CHANGE);
+            //continue;
           }
         } 
+        else if(_refvel < HIGHWAY_SPEED_MPS)
+        {
+          _refvel+=mph_to_mps(0.224);
+        }
+
         Path path = findKeepLanePath(pose, mapData, prev);
         pathGenerated=true;
         return path;
