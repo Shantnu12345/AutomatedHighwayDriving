@@ -6,9 +6,39 @@
 #include <vector>
 
 // for convenience
-using std::string;
-using std::vector;
+using namespace std;
 
+struct Pose
+{
+  double x;   //m
+  double y;   //m
+  double s;   //m
+  double d;   //m
+  double yaw; //rad
+  double spd; //mps
+  double vx;  //mps
+  double vy;  //mps
+};
+
+inline double mph_to_mps(double mph)
+{
+  return mph*0.447;
+}
+
+struct Path
+{
+  vector<double> xpts;
+  vector<double> ypts;
+};
+
+struct MapData
+{
+  vector<double> waypoints_x;
+  vector<double> waypoints_y;
+  vector<double> waypoints_s;
+  vector<double> waypoints_dx;
+  vector<double> waypoints_dy;
+};
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 //   else the empty string "" will be returned.
