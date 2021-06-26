@@ -30,6 +30,8 @@ struct Path
 {
   vector<double> xpts;
   vector<double> ypts;
+  double lastS;//
+  double lastD;//
 };
 
 struct MapData

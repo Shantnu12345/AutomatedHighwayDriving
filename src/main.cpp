@@ -85,11 +85,11 @@ int main() {
           {
             prev.xpts.emplace_back(previous_path_x[i]);
             prev.ypts.emplace_back(previous_path_y[i]);
-          }        
+          }       
           
           // Previous path's end s and d values 
-          double end_path_s = j[1]["end_path_s"];
-          double end_path_d = j[1]["end_path_d"];
+          prev.lastS = j[1]["end_path_s"];
+          prev.lastD = j[1]["end_path_d"];
 
           // Sensor Fusion Data, a list of all other cars on the same side 
           //   of the road.

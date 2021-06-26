@@ -40,7 +40,7 @@ public:
 
 private:
   void setState(State s) {_state=s;}
-  Lane findBestLane() { return LEFT; };
+  Lane findBestLane();
   Path findKeepLanePath(Pose const& pose, MapData const& mapData, Path const& prev);
   int closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);
   
@@ -51,32 +51,29 @@ private:
 
 int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 { 
-  /*
-  double prevs;
+  //Logic using predictions. Note, no need for prediction of ego veh because we know it from
+  //prev
+  double egoPredS;
   int prevSize=prev.xpts.size();
   if(prevSize<2)
-    prevs=pose.s;
+    egoPredS=pose.s;
   else
-  {
-    //Find frenet of the end point of prev
-    double y2=prev.ypts[prevSize-1], y1=prev.ypts[prevSize-2];
-    double x2=prev.xpts[prevSize-1], x1=prev.xpts[prevSize-2];
-    double theta = atan2(y2-y1, x2-x1);
-    auto frenets = getFrenet(prev.xpts.back(), prev.xpts.front(), theta, mapData.waypoints_x, mapData.waypoints_y);
-    prevs = frenets[0];
-  }
+    egoPredS=prev.lastS;  
 
   for(auto const& car:cars)
   {
     //Width of evey lane is 4. Note, our d is 4*_curLane + 2
     //Dont worry if this vehicle is not in our lane
-    if(car.d < 4*_curLane || car.d > 5*_curLane) continue;
+    if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;//might wanna use car's predicted d?
 
     double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
-    double carStotal = car.s + prevSize*0.02*carspd;
+    double carPredS = car.s + prevSize*0.02*carspd;
+    if(carPredS>egoPredS && carPredS-egoPredS<30)
+      return car.id;
+  }
 
-  }*/
-
+  /*
+  //Naive logic using current position
   for(auto const& car:cars)
   {
     //Width of evey lane is 4. Note, our d is 4*_curLane + 2
@@ -94,10 +91,16 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
       return car.id;
     }
   }
+  */
   
   return -1; 
     
 }
+
+Lane LaneChangerFSM::findBestLane() 
+{ 
+  return LEFT; 
+};
 
 Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 {
@@ -118,8 +121,8 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
           auto const& lead=cars[leadId];
           double leadspd=sqrt(lead.vx*lead.vx + lead.vy*lead.vy);
           cout<<"LeadId"<<leadId<< " Leadspd:"<<leadspd<< " refvel:"<<_refvel<<endl;
-          if(leadspd<_refvel) 
-           _refvel-=acc;
+          //if(leadspd<_refvel) 
+          _refvel-=acc;
           //else
           //  _refvel=leadspd;
           //if(lead.s-pose.s<25)
