@@ -8,6 +8,15 @@
 int logs=0, maxlogs=70;
 
 
+//Todo:
+// - Lane shift is still aggressive
+// - Lane change logic:
+//      - Seeing cars in the other lane, using similar logic to what we did for current lane, 
+//        and then seeing it the car is within certain gap (50m behind you, 30m infront of you)
+//      - Cost function for lane change. Try looking at the lanes for next 5 secs and see which one is the best 
+//        to be in. To look at future the prediction lesson would be helpful. There maive bayes is used to predict 
+//        future trajectories 
+
 static const double HIGHWAY_SPEED_MPS = 22;
 static const int    TRAJ_SIZE         = 50;
 static const double acc               = mph_to_mps(0.224);
@@ -78,7 +87,7 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
     
     double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
     
-    double stoppingDistance = 30; //;+ (carspd*carspd - pose.spd*pose.spd)/2*
+    double stoppingDistance = 30;// + abs(pose.spd*pose.spd-carspd*carspd)/2*acc;
     if(car.s > pose.s && car.s-pose.s < stoppingDistance)// && carspd < pose.spd)
     {
       cout<<"    Dis:"<<car.s-pose.s<<" spd:"<<carspd<<" ps:"<<pose.spd<<endl;      
@@ -109,15 +118,17 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
           auto const& lead=cars[leadId];
           double leadspd=sqrt(lead.vx*lead.vx + lead.vy*lead.vy);
           cout<<"LeadId"<<leadId<< " Leadspd:"<<leadspd<< " refvel:"<<_refvel<<endl;
-          if(leadspd<=_refvel) 
-            _refvel-=mph_to_mps(0.224);
+          if(leadspd<_refvel) 
+           _refvel-=acc;
+          //else
+          //  _refvel=leadspd;
           //if(lead.s-pose.s<25)
-          //  _refvel+=mph_to_mps(0.224);
+          //  _refvel+=acc;
 
 
           Lane bestLane = findBestLane();
           if(bestLane==-1)
-          {
+          { 
             //lower your speed
           }
           else if(bestLane==LEFT) 
@@ -135,7 +146,7 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
         } 
         else if(_refvel < HIGHWAY_SPEED_MPS)
         {
-          _refvel+=mph_to_mps(0.224);
+          _refvel+=acc;
         }
 
         Path path = findKeepLanePath(pose, mapData, prev);
