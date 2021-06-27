@@ -79,11 +79,11 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
   //Naive logic using current position
   for(auto const& car:cars)
   {
-    if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;
+    if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;    
     double stoppingDistance = 30;// + abs(pose.spd*pose.spd-car.spd*car.spd)/2*acc;
     if(car.s > pose.s && car.s-pose.s < stoppingDistance)// && car.spd < pose.spd)    
       return car.id;
-    }
+  }
   */
   
   return -1; 
@@ -103,8 +103,8 @@ LaneChangeResults LaneChangerFSM::isLaneChangePossible(int lane, Pose const& pos
     if(car.d < 4*lane || car.d > 4*(lane+1)) continue;//might wanna use car's predicted d?
     double carPredS = car.s + prevSize*0.02*car.spd;
     double dis=abs(carPredS-egoPredS);
-    if(    (carPredS>egoPredS && dis<10) //Cannot change lane
-        || (carPredS<egoPredS && dis<10)
+    if(    (carPredS>egoPredS && dis<20) //Cannot change lane
+        || (carPredS<egoPredS && dis<20)
       )
     {
       return LaneChangeResults{false, -1, 0};
@@ -125,30 +125,39 @@ Lane LaneChangerFSM::findBestLane(Pose const& pose, MapData const& mapData, Path
 { 
   auto leftResults  = isLaneChangePossible(_curLane-1, pose, mapData, prev, cars);
   auto rightResults = isLaneChangePossible(_curLane+1, pose, mapData, prev, cars);
-  cout<<"LeftPossible:"<<leftResults.possible<<" rightPossible:"<<leftResults.possible<<" ldis:"<<leftResults.predDis2Lead<<" rdis:"<<rightResults.predDis2Lead<<endl;
-  if(leftResults.possible && rightResults.possible)
-  {
-    if(   (leftResults.leadID==-1 && rightResults.leadID==-1) //Both left and right are free
-       || (leftResults.leadID==-1 && rightResults.leadID!=-1) //Left is free, right is occupied
-      )
-      return LEFT;
-    else if(leftResults.leadID!=-1 && rightResults.leadID==-1) //Right is free left is occupied
-      return RIGHT;
-   else//Both left and right jave a lead in front, but still its possible to turn
-   {
-      if(leftResults.predDis2Lead > leftResults.predDis2Lead)
-        return LEFT;
-      else
-        return RIGHT;
-   } 
-  }
-  else if(leftResults.possible)
-    return LEFT;
-  else if(rightResults.possible)
-    return RIGHT;
+  cout<<"LeftPossible:"<<leftResults.possible<<" rightPossible:"<<rightResults.possible
+      <<" ldis:"<<leftResults.predDis2Lead<<" rdis:"<<rightResults.predDis2Lead<<endl;
   
-  return CURRENT;
-};
+  //Cost = s travelled over next 5sec
+  double curCost = pose.spd*5;
+
+  double leftLeadSpd;
+  if(leftResults.possible)
+    leftLeadSpd = leftResults.leadId==-1  ? HIGHWAY_SPEED_MPS:cars[leftResults.leadId].spd;
+  else
+    leftLeadSpd=0;
+
+  double rightLeadSpd; 
+  if(rightResults.possible)
+    rightLeadSpd = rightResults.leadId==-1 ? HIGHWAY_SPEED_MPS:cars[rightResults.leadId].spd;
+  else
+    rightLeadSpd=0;
+  
+  double leftCost  = leftLeadSpd*5;
+  double rightCost = rightLeadSpd*5;
+  cout<<"LC:"<<leftCost<<" CC:"<<curCost<<" RC:"<<rightCost<<endl;
+
+  if(leftCost>curCost)
+  {
+    if(leftCost>rightCost) return LEFT;
+    else                   return RIGHT;
+  }
+  else
+  {
+    if(curCost>rightCost)  return CURRENT;
+    else                   return RIGHT;
+  }
+}
 
 Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 {
@@ -180,18 +189,21 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
           Lane bestLane = findBestLane(pose, mapData, prev, cars);
           if(bestLane==LEFT) 
           {
+            cout<<"LEFT"<<endl;
             _curLane = _curLane==0 ? _curLane : _curLane-1;
             //setState(PREP_LEFT_LANE_CHANGE);
             //continue;
           }
           else if(bestLane==RIGHT)
           {
+            cout<<"RIGHT"<<endl;
             _curLane = _curLane==2 ? _curLane : _curLane+1;
             //setState(PREP_RIGHT_LANE_CHANGE);
             //continue;
           }
           else 
           {
+            cout<<"CURRENT"<<endl;
             //do Nothing
           }
         } 
