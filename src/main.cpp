@@ -110,7 +110,7 @@ int main() {
           }
 
           json msgJson;
-          cout<<endl<<"H1"<<endl;
+          //cout<<endl<<"H1"<<endl;
           Path next = laneChangerFSM.findNextPath(pose, mapData, prev, cars); //Index0: x values, Index1: y values 
           msgJson["next_x"] = next.xpts;
           msgJson["next_y"] = next.ypts;

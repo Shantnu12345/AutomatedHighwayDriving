@@ -30,7 +30,7 @@ enum State {
   RIGHT_LANE_CHANGE
 };
 
-enum Lane{ LEFT, RIGHT};
+enum Lane{ LEFT, RIGHT, CURRENT};
 
 class LaneChangerFSM
 {
@@ -40,26 +40,31 @@ public:
 
 private:
   void setState(State s) {_state=s;}
-  Lane findBestLane();
+  LaneChangeResults isLaneChangePossible(int lane, Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);  
+  Lane findBestLane(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);
   Path findKeepLanePath(Pose const& pose, MapData const& mapData, Path const& prev);
   int closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars);
-  
+  inline double predictEgoS(Pose const& pose, Path const& prev);
   State _state;
   int _curLane;
   double _refvel;//in mps
 };
 
+double LaneChangerFSM::predictEgoS(Pose const& pose, Path const& prev)
+{
+  int prevSize=prev.xpts.size();
+  if(prevSize<2)
+    return pose.s;
+  
+  return prev.lastS;  
+}
+
 int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 { 
   //Logic using predictions. Note, no need for prediction of ego veh because we know it from
   //prev
-  double egoPredS;
+  double egoPredS = predictEgoS(pose, prev);
   int prevSize=prev.xpts.size();
-  if(prevSize<2)
-    egoPredS=pose.s;
-  else
-    egoPredS=prev.lastS;  
-
   for(auto const& car:cars)
   {
     //Width of evey lane is 4. Note, our d is 4*_curLane + 2
@@ -97,9 +102,66 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
     
 }
 
-Lane LaneChangerFSM::findBestLane() 
+LaneChangeResults LaneChangerFSM::isLaneChangePossible(int lane, Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
 { 
-  return LEFT; 
+  if(lane<0 || lane>2)
+    return LaneChangeResults{false, -1, 0};
+  double egoPredS = predictEgoS(pose, prev);
+  int prevSize=prev.xpts.size();
+  int leadId=-1;
+  double minLeadDis=10000;
+  for(auto const& car:cars)
+  {
+    if(car.d < 4*lane || car.d > 4*(lane+1)) continue;//might wanna use car's predicted d?
+
+    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
+    double carPredS = car.s + prevSize*0.02*carspd;
+    double dis=abs(carPredS-egoPredS);
+    if(    (carPredS>egoPredS && dis<5) //Cannot change lane
+        || (carPredS<egoPredS && dis<5)
+      )
+    {
+      return LaneChangeResults{false, -1, 0};
+    }
+
+    if((carPredS>egoPredS && dis<minLeadDis))
+    {
+      leadId=car.id;
+      minLeadDis=carPredS-egoPredS;
+    }
+  }
+
+  return LaneChangeResults{true, leadId, minLeadDis}; 
+    
+}
+
+Lane LaneChangerFSM::findBestLane(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars) 
+{ 
+  auto leftResults  = isLaneChangePossible(_curLane-1, pose, mapData, prev, cars);
+  auto rightResults = isLaneChangePossible(_curLane+1, pose, mapData, prev, cars);
+  cout<<"LeftPossible:"<<leftResults.possible<<" rightPossible:"<<leftResults.possible<<" ldis:"<<leftResults.predDis2Lead<<" rdis:"<<rightResults.predDis2Lead<<endl;
+  if(leftResults.possible && rightResults.possible)
+  {
+    if(   (leftResults.leadID==-1 && rightResults.leadID==-1) //Both left and right are free
+       || (leftResults.leadID==-1 && rightResults.leadID!=-1) //Left is free, right is occupied
+      )
+      return LEFT;
+    else if(leftResults.leadID!=-1 && rightResults.leadID==-1) //Right is free left is occupied
+      return RIGHT;
+   else//Both left and right jave a lead in front, but still its possible to turn
+   {
+      if(leftResults.predDis2Lead > leftResults.predDis2Lead)
+        return LEFT;
+      else
+        return RIGHT;
+   } 
+  }
+  else if(leftResults.possible)
+    return LEFT;
+  else if(rightResults.possible)
+    return RIGHT;
+  
+  return CURRENT;
 };
 
 Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path const& prev, vector<Pose> const& cars)
@@ -118,9 +180,9 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
         
         if(leadId!=-1)
         {
-          auto const& lead=cars[leadId];
-          double leadspd=sqrt(lead.vx*lead.vx + lead.vy*lead.vy);
-          cout<<"LeadId"<<leadId<< " Leadspd:"<<leadspd<< " refvel:"<<_refvel<<endl;
+          //auto const& lead=cars[leadId];
+          //double leadspd=sqrt(lead.vx*lead.vx + lead.vy*lead.vy);
+          //cout<<"LeadId"<<leadId<< " Leadspd:"<<leadspd<< " refvel:"<<_refvel<<endl;
           //if(leadspd<_refvel) 
           _refvel-=acc;
           //else
@@ -129,22 +191,22 @@ Path LaneChangerFSM::findNextPath(Pose const& pose, MapData const& mapData, Path
           //  _refvel+=acc;
 
 
-          Lane bestLane = findBestLane();
-          if(bestLane==-1)
-          { 
-            //lower your speed
-          }
-          else if(bestLane==LEFT) 
+          Lane bestLane = findBestLane(pose, mapData, prev, cars);
+          if(bestLane==LEFT) 
           {
             _curLane = _curLane==0 ? _curLane : _curLane-1;
             //setState(PREP_LEFT_LANE_CHANGE);
             //continue;
           }
-          else
+          else if(bestLane==RIGHT)
           {
-            _curLane = _curLane==2 ? _curLane : _curLane++;
+            _curLane = _curLane==2 ? _curLane : _curLane+1;
             //setState(PREP_RIGHT_LANE_CHANGE);
             //continue;
+          }
+          else 
+          {
+            //do Nothing
           }
         } 
         else if(_refvel < HIGHWAY_SPEED_MPS)

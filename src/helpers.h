@@ -42,6 +42,13 @@ struct MapData
   vector<double> waypoints_dx;
   vector<double> waypoints_dy;
 };
+
+struct LaneChangeResults
+{
+  bool possible;
+  int leadID;
+  double predDis2Lead;
+};
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 //   else the empty string "" will be returned.
