@@ -46,7 +46,7 @@ struct MapData
 struct LaneChangeResults
 {
   bool possible;
-  int leadID;
+  int leadId;
   double predDis2Lead;
 };
 // Checks if the SocketIO event has JSON data.
