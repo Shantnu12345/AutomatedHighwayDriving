@@ -106,6 +106,7 @@ int main() {
             p.vy = carData[4];
             p.s = carData[5];
             p.d = carData[6];
+            p.spd = sqrt(p.vx*p.vx + p.vy*p.vy);
             cars.emplace_back(p);
           }
 

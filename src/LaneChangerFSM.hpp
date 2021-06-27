@@ -70,9 +70,7 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
     //Width of evey lane is 4. Note, our d is 4*_curLane + 2
     //Dont worry if this vehicle is not in our lane
     if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;//might wanna use car's predicted d?
-
-    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
-    double carPredS = car.s + prevSize*0.02*carspd;
+    double carPredS = car.s + prevSize*0.02*car.spd;
     if(carPredS>egoPredS && carPredS-egoPredS<30)
       return car.id;
   }
@@ -81,21 +79,11 @@ int LaneChangerFSM::closeToVehicleInFront(Pose const& pose, MapData const& mapDa
   //Naive logic using current position
   for(auto const& car:cars)
   {
-    //Width of evey lane is 4. Note, our d is 4*_curLane + 2
-    //Dont worry if this vehicle is not in our lane
-    //cout<<"id:"<<car.id<< " cl:"<<_curLane<< " d:"<<car.d<< " pd:"<<pose.d<< " s:"<<car.s << " ps:"<< pose.s<<endl;
-    
     if(car.d < 4*_curLane || car.d > 4*(_curLane+1)) continue;
-    
-    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
-    
-    double stoppingDistance = 30;// + abs(pose.spd*pose.spd-carspd*carspd)/2*acc;
-    if(car.s > pose.s && car.s-pose.s < stoppingDistance)// && carspd < pose.spd)
-    {
-      cout<<"    Dis:"<<car.s-pose.s<<" spd:"<<carspd<<" ps:"<<pose.spd<<endl;      
+    double stoppingDistance = 30;// + abs(pose.spd*pose.spd-car.spd*car.spd)/2*acc;
+    if(car.s > pose.s && car.s-pose.s < stoppingDistance)// && car.spd < pose.spd)    
       return car.id;
     }
-  }
   */
   
   return -1; 
@@ -113,12 +101,10 @@ LaneChangeResults LaneChangerFSM::isLaneChangePossible(int lane, Pose const& pos
   for(auto const& car:cars)
   {
     if(car.d < 4*lane || car.d > 4*(lane+1)) continue;//might wanna use car's predicted d?
-
-    double carspd=sqrt(car.vx*car.vx + car.vy*car.vy);
-    double carPredS = car.s + prevSize*0.02*carspd;
+    double carPredS = car.s + prevSize*0.02*car.spd;
     double dis=abs(carPredS-egoPredS);
-    if(    (carPredS>egoPredS && dis<5) //Cannot change lane
-        || (carPredS<egoPredS && dis<5)
+    if(    (carPredS>egoPredS && dis<10) //Cannot change lane
+        || (carPredS<egoPredS && dis<10)
       )
     {
       return LaneChangeResults{false, -1, 0};
