@@ -271,11 +271,12 @@ Path LaneChangerFSM::findKeepLanePath(Pose const& pose, MapData const& mapData, 
     temp.ypts.emplace_back(refy);
   }
 
-  vector<double> xy1 = getXY(pose.s+30, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
+  float longDis=50.0f;
+  vector<double> xy1 = getXY(pose.s+longDis*1, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
   temp.xpts.emplace_back(xy1[0]); temp.ypts.emplace_back(xy1[1]);
-  vector<double> xy2 = getXY(pose.s+60, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
+  vector<double> xy2 = getXY(pose.s+longDis*2, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
   temp.xpts.emplace_back(xy2[0]); temp.ypts.emplace_back(xy2[1]);
-  vector<double> xy3 = getXY(pose.s+90, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
+  vector<double> xy3 = getXY(pose.s+longDis*3, 2+4*_curLane, mapData.waypoints_s, mapData.waypoints_x, mapData.waypoints_y);
   temp.xpts.emplace_back(xy3[0]); temp.ypts.emplace_back(xy3[1]);
 
   if(logs<maxlogs) cout<<"Refx:"<<refx<<" Refy:"<<refy<<" Refyaw:"<<refyaw<<" prev:"<<prevSize<<endl;
